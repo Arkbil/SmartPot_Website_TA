@@ -4,7 +4,7 @@ const DEFAULT_LED_LEVELS = { red: 70, blue: 55, white: 80, farRed: 25 };
 const TANK_HEIGHT_CM = 30;
 const POLL_SECONDS = 4;
 const $ = id => document.getElementById(id);
-const supabase = window.supabase?.createClient
+const supabaseClient = window.supabase?.createClient
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
   : null;
 const timeFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -58,8 +58,8 @@ function setLedAccess(user) {
   $('authButton').textContent = enabled ? 'Logout' : 'Login admin';
 }
 function requireSupabase() {
-  if (!supabase) throw new Error('Supabase SDK belum termuat. Cek koneksi internet.');
-  return supabase;
+  if (!supabaseClient) throw new Error('Supabase SDK belum termuat. Cek koneksi internet.');
+  return supabaseClient;
 }
 async function loadLedLevels() {
   if (!currentUser) return;
@@ -247,14 +247,14 @@ function toggleTheme() {
   refreshIcons();
 }
 async function syncAuth() {
-  if (!supabase) { setLedAccess(null); return; }
-  const { data: { user } } = await supabase.auth.getUser();
+  if (!supabaseClient) { setLedAccess(null); return; }
+  const { data: { user } } = await supabaseClient.auth.getUser();
   currentUser = user; setLedAccess(user);
   if (user) await loadLedLevels();
 }
 function openAuthDialog() {
   $('authDialog').showModal(); $('authEmail').focus();
-  if (!supabase) $('authMessage').textContent = 'Supabase SDK belum termuat.';
+  if (!supabaseClient) $('authMessage').textContent = 'Supabase SDK belum termuat.';
 }
 function bindEvents() {
   $('refreshButton').onclick = refresh;

@@ -39,7 +39,10 @@ test('Render web service HTTP contract', async t => {
   const script = await fetch(`${baseUrl}/dashboard.js`);
   assert.equal(script.status, 200);
   assert.match(script.headers.get('content-type'), /^text\/javascript/);
-  assert.doesNotMatch(await script.text(), /thingspeak/i);
+  const scriptBody = await script.text();
+  assert.doesNotMatch(scriptBody, /thingspeak/i);
+  assert.doesNotMatch(scriptBody, /\bconst\s+supabase\s*=/);
+  assert.match(scriptBody, /\bconst\s+supabaseClient\s*=/);
 
   assert.equal((await fetch(`${baseUrl}/missing`)).status, 404);
   assert.equal((await fetch(`${baseUrl}/`, { method: 'POST' })).status, 405);
