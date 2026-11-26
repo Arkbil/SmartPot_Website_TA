@@ -1,0 +1,14 @@
+{
+  "name": "iot-smart-pot-render",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Render Web Service for the IoT Smart Pot dashboard",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test-server.js"
+  }
+}
+

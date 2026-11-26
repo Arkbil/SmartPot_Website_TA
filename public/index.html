@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Pot | Monitoring IoT</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { color-scheme: light; }
+    .dark { color-scheme: dark; }
+    body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    .mesh { background: radial-gradient(circle at 5% 5%, rgba(34,197,94,.16), transparent 30%), radial-gradient(circle at 95% 15%, rgba(20,184,166,.12), transparent 24%); }
+    .metric-card { box-shadow: 0 12px 32px rgba(15, 23, 42, .08); }
+    .dark .metric-card { box-shadow: 0 12px 32px rgba(0,0,0,.18); }
+    .pulse-on { animation: pulse-on 1.8s ease-in-out infinite; }
+    @keyframes pulse-on { 50% { box-shadow: 0 0 0 10px rgba(34,197,94,0); } }
+    dialog::backdrop { background: rgba(2, 6, 23, .66); backdrop-filter: blur(3px); }
+  </style>
+</head>
+<body class="mesh min-h-screen bg-slate-100 text-slate-800 transition-colors dark:bg-slate-950 dark:text-slate-100">
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-7">
+      <aside class="mb-5 rounded-3xl border border-slate-200 bg-white/80 p-4 dark:border-slate-800 dark:bg-slate-900/80 lg:sticky lg:top-6 lg:mb-0 lg:h-fit">
+        <div class="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800"><div class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white"><i data-lucide="sprout" class="h-5 w-5"></i></div><div><p class="font-bold">Smart Pot</p><p class="text-xs text-slate-500 dark:text-slate-400">Control center</p></div></div>
+        <nav class="grid grid-cols-2 gap-2 text-sm font-semibold lg:grid-cols-1" aria-label="Navigasi dashboard">
+          <a href="#led-control" class="flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-white"><i data-lucide="sliders-horizontal" class="h-4 w-4"></i> Kontrol LED</a>
+          <a href="#sensors" class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"><i data-lucide="activity" class="h-4 w-4"></i> Sensor</a>
+        </nav>
+        <p class="mt-5 border-t border-slate-100 pt-4 text-xs leading-relaxed text-slate-500 dark:border-slate-800 dark:text-slate-400">Intensitas LED tersimpan di Supabase setelah login. Sensor diperbarui setiap 4 detik.</p>
+      </aside>
+      <div class="min-w-0">
+    <header id="overview" class="mb-7 flex flex-col gap-5 rounded-3xl border border-emerald-100 bg-white/80 p-5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-4">
+        <div class="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/25"><i data-lucide="sprout"></i></div>
+        <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-emerald-600">IoT Plant Care</p><h1 class="text-2xl font-bold">Smart Pot Monitor</h1></div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span id="connectionStatus" class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300"><span class="h-2 w-2 rounded-full bg-slate-400"></span> Menunggu</span>
+        <button id="themeButton" class="rounded-xl border border-slate-200 p-2.5 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" aria-label="Ganti tema"><i data-lucide="moon" class="h-4 w-4"></i></button>
+        <button id="authButton" type="button" class="inline-flex items-center gap-2 rounded-xl border border-violet-300 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-500/10"><i data-lucide="log-in" class="h-4 w-4"></i> Login admin</button>
+        <button id="refreshButton" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"><i data-lucide="refresh-cw" class="h-4 w-4"></i> Refresh sekarang</button>
+      </div>
+    </header>
+
+    <section class="mb-7 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between">
+      <p id="lastUpdated" class="text-slate-600 dark:text-slate-300">Belum ada pembaruan.</p>
+      <p class="font-medium text-slate-500 dark:text-slate-400">Pembaruan otomatis dalam <span id="countdown" class="font-bold text-emerald-600">4</span> detik</p>
+    </section>
+    <div id="alert" role="alert" class="mb-6 hidden rounded-2xl border px-4 py-3 text-sm"></div>
+
+    <section id="led-control" class="metric-card mb-7 rounded-3xl border border-violet-200 bg-white p-5 dark:border-violet-900/70 dark:bg-slate-900 sm:p-7">
+      <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-violet-600">Fokus utama</p><h2 class="mt-1 text-2xl font-bold">Kontrol spektrum grow light</h2><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Atur intensitas tiap kanal dari 0 sampai 100%.</p></div><span id="ledStorageStatus" class="inline-flex w-fit items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"><i data-lucide="lock" class="h-4 w-4"></i> Login untuk kontrol</span></div>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <label class="rounded-2xl border border-red-100 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-500/10"><span class="flex items-center justify-between"><span class="font-bold text-red-700 dark:text-red-300">Red</span><output id="redLevel" class="rounded-lg bg-white px-2 py-1 text-sm font-bold text-red-700 shadow-sm dark:bg-slate-900 dark:text-red-300">0%</output></span><input id="redSlider" type="range" min="0" max="100" value="0" class="mt-5 w-full accent-red-600" aria-label="Intensitas LED Red" /><span class="mt-2 block text-xs text-slate-500 dark:text-slate-400">Merah, dukung pembungaan.</span></label>
+        <label class="rounded-2xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-500/10"><span class="flex items-center justify-between"><span class="font-bold text-blue-700 dark:text-blue-300">Blue</span><output id="blueLevel" class="rounded-lg bg-white px-2 py-1 text-sm font-bold text-blue-700 shadow-sm dark:bg-slate-900 dark:text-blue-300">0%</output></span><input id="blueSlider" type="range" min="0" max="100" value="0" class="mt-5 w-full accent-blue-600" aria-label="Intensitas LED Blue" /><span class="mt-2 block text-xs text-slate-500 dark:text-slate-400">Biru, dukung fase vegetatif.</span></label>
+        <label class="rounded-2xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-500/10"><span class="flex items-center justify-between"><span class="font-bold text-amber-700 dark:text-amber-300">White</span><output id="whiteLevel" class="rounded-lg bg-white px-2 py-1 text-sm font-bold text-amber-700 shadow-sm dark:bg-slate-900 dark:text-amber-300">0%</output></span><input id="whiteSlider" type="range" min="0" max="100" value="0" class="mt-5 w-full accent-amber-500" aria-label="Intensitas LED White" /><span class="mt-2 block text-xs text-slate-500 dark:text-slate-400">Putih, spektrum seimbang.</span></label>
+        <label class="rounded-2xl border border-fuchsia-100 bg-fuchsia-50 p-4 dark:border-fuchsia-900/50 dark:bg-fuchsia-500/10"><span class="flex items-center justify-between"><span class="font-bold text-fuchsia-700 dark:text-fuchsia-300">Far Red</span><output id="farRedLevel" class="rounded-lg bg-white px-2 py-1 text-sm font-bold text-fuchsia-700 shadow-sm dark:bg-slate-900 dark:text-fuchsia-300">0%</output></span><input id="farRedSlider" type="range" min="0" max="100" value="0" class="mt-5 w-full accent-fuchsia-600" aria-label="Intensitas LED Far Red" /><span class="mt-2 block text-xs text-slate-500 dark:text-slate-400">Far red, respons morfologi.</span></label>
+      </div>
+    </section>
+
+    <section id="sensors" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Metrik utama">
+      <article class="metric-card rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <div class="mb-5 flex items-start justify-between"><div class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/15"><i data-lucide="waves" class="h-5 w-5"></i></div><span id="soilBadge" class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800">-</span></div>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Kelembapan tanah</p><p class="mt-1 text-4xl font-bold"><span id="soilValue">--</span><span class="text-xl text-slate-400">%</span></p>
+        <div class="mt-5 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div id="soilBar" class="h-full w-0 rounded-full bg-emerald-500 transition-all duration-500"></div></div>
+      </article>
+      <article class="metric-card rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <div class="mb-5 flex items-start justify-between"><div class="grid h-10 w-10 place-items-center rounded-xl bg-sky-100 text-sky-600 dark:bg-sky-500/15"><i data-lucide="droplets" class="h-5 w-5"></i></div><span id="waterBadge" class="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">Tangki</span></div>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Level air tangki</p><p class="mt-1 text-4xl font-bold"><span id="waterValue">--</span><span class="text-xl text-slate-400">%</span></p>
+        <p id="waterDistance" class="mt-2 text-sm text-slate-500 dark:text-slate-400">Jarak sensor: -- cm</p>
+        <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div id="waterBar" class="h-full w-0 rounded-full bg-sky-500 transition-all duration-500"></div></div>
+      </article>
+      <article class="metric-card rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <div class="mb-5 flex items-start justify-between"><div class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15"><i data-lucide="circle-gauge" class="h-5 w-5"></i></div><span id="pumpDot" class="h-3 w-3 rounded-full bg-slate-300 dark:bg-slate-600"></span></div>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Pompa penyiraman</p><p id="pumpStatus" class="mt-2 text-3xl font-bold">OFF</p><p id="pumpText" class="mt-2 text-sm text-slate-500 dark:text-slate-400">Pompa mati</p>
+      </article>
+    </section>
+
+    <section id="history" class="mt-7 grid gap-5 lg:grid-cols-2">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"><div class="mb-5"><h2 class="font-bold">Tren kelembapan tanah</h2><p class="text-sm text-slate-500 dark:text-slate-400">30 pembacaan terakhir, WIB</p></div><div class="h-72"><canvas id="soilChart"></canvas></div></article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"><div class="mb-5"><h2 class="font-bold">Tren sisa air tangki</h2><p class="text-sm text-slate-500 dark:text-slate-400">Persentase sisa air, WIB</p></div><div class="h-72"><canvas id="waterChart"></canvas></div></article>
+      <div class="mt-5 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 lg:col-span-2">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-bold">Riwayat sensor</h2><p class="text-sm text-slate-500 dark:text-slate-400">30 log terbaru; waktu WIB</p></div><button id="exportButton" type="button" disabled class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Ekspor CSV</button></div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-slate-100 dark:bg-slate-800"><tr><th class="whitespace-nowrap px-4 py-3">Waktu WIB</th><th class="px-4 py-3">Tanah</th><th class="px-4 py-3">Jarak air</th><th class="px-4 py-3">Sisa air</th><th class="px-4 py-3">Pompa</th><th class="px-4 py-3">Lampu</th><th class="whitespace-nowrap px-4 py-3">PWM R/B/W/FR</th></tr></thead><tbody id="historyBody"></tbody></table></div>
+      </div>
+    </section>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="authDialog" class="w-[calc(100%-2rem)] max-w-md rounded-3xl border border-slate-200 bg-white p-0 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+    <form id="authForm" class="p-6"><div class="mb-6 flex items-start justify-between"><div><h2 class="text-xl font-bold">Login admin</h2><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Akun Supabase menyimpan kontrol LED.</p></div><button type="button" id="closeAuth" class="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Tutup"><i data-lucide="x"></i></button></div><div class="space-y-4"><label class="block text-sm font-semibold">Email<input id="authEmail" type="email" required class="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-violet-500 dark:border-slate-700 dark:bg-slate-800" autocomplete="email" /></label><label class="block text-sm font-semibold">Password<input id="authPassword" type="password" required minlength="8" class="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-violet-500 dark:border-slate-700 dark:bg-slate-800" autocomplete="current-password" /></label></div><p id="authMessage" class="mt-3 text-sm text-red-600 dark:text-red-300"></p><button id="authSubmit" class="mt-5 w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700">Login</button></form>
+  </dialog>
+
+  <script>
+    const SUPABASE_URL = 'https://visvnsijjuqnlpzravjl.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_jx1injfAq07xyvdfx7bg0w_gpWnIocR';
+  </script>
+  <script src="./dashboard.js"></script>
+</body>
+</html>
